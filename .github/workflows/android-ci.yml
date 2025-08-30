@@ -27,7 +27,7 @@ jobs:
         env:
           ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE }}
         run: |
-          KEYSTORE_PATH="app/keystore.jks"
+          KEYSTORE_PATH="keystore.jks"
           echo $ANDROID_KEYSTORE_B64 | base64 --decode > $KEYSTORE_PATH
           echo "keystore_path=$KEYSTORE_PATH" >> $GITHUB_OUTPUT
 
