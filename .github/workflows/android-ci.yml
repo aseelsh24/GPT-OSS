@@ -23,39 +23,33 @@ jobs:
         run: chmod +x gradlew
 
       - name: Decode Keystore
+        id: decode_keystore
         env:
           ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE }}
         run: |
-          echo $ANDROID_KEYSTORE_B64 | base64 --decode > app/keystore.jks
+          KEYSTORE_PATH="app/keystore.jks"
+          echo $ANDROID_KEYSTORE_B64 | base64 --decode > $KEYSTORE_PATH
+          echo "keystore_path=$KEYSTORE_PATH" >> $GITHUB_OUTPUT
 
-      - name: Build with Gradle
-        run: ./gradlew assembleRelease
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-
-      - name: Sign APK
-        id: sign_apk
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
+      - name: Build and Sign APK with Gradle
+        run: |
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=${{ steps.decode_keystore.outputs.keystore_path }} \
+            -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
 
       - name: Upload APK as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-signed.apk
-          path: app/build/outputs/apk/release/app-release-signed.apk
+          name: app-release.apk
+          path: app/build/outputs/apk/release/app-release.apk
 
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/app-release-signed.apk
+          files: app/build/outputs/apk/release/app-release.apk
           tag_name: release-${{ github.sha }}
           body: |
             Automated release for commit ${{ github.sha }}.

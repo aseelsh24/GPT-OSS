@@ -1,13 +1,3 @@
-import java.io.FileInputStream
-import java.util.Properties
-
-// Load signing properties
-val keystorePropertiesFile = rootProject.file("keystore.properties")
-val keystoreProperties = Properties()
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-}
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -29,12 +19,12 @@ android {
 
     signingConfigs {
         create("release") {
-            // In a CI environment, we will pass these values via command line properties.
-            // For local builds, you can create a keystore.properties file.
-            storeFile = file(keystoreProperties.getProperty("storeFile", "keystore.jks"))
-            storePassword = keystoreProperties.getProperty("storePassword")
-            keyAlias = keystoreProperties.getProperty("keyAlias")
-            keyPassword = keystoreProperties.getProperty("keyPassword")
+            if (project.hasProperty("android.injected.signing.store.file")) {
+                storeFile = file(project.property("android.injected.signing.store.file") as String)
+                storePassword = project.property("android.injected.signing.store.password") as String
+                keyAlias = project.property("android.injected.signing.key.alias") as String
+                keyPassword = project.property("android.injected.signing.key.password") as String
+            }
         }
     }
 
