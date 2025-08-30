@@ -27,9 +27,11 @@ jobs:
         env:
           ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE }}
         run: |
-          KEYSTORE_PATH="keystore.jks"
-          echo $ANDROID_KEYSTORE_B64 | base64 --decode > $KEYSTORE_PATH
-          echo "keystore_path=$KEYSTORE_PATH" >> $GITHUB_OUTPUT
+          KEYSTORE_FILE="keystore.jks"
+          echo "$ANDROID_KEYSTORE_B64" | base64 --decode > "$KEYSTORE_FILE"
+          # Get the absolute path for Gradle
+          ABS_KEYSTORE_PATH=$(readlink -f "$KEYSTORE_FILE")
+          echo "keystore_path=$ABS_KEYSTORE_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Build and Sign APK with Gradle
         run: |

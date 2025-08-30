@@ -20,7 +20,7 @@ android {
     signingConfigs {
         create("release") {
             if (project.hasProperty("android.injected.signing.store.file")) {
-                storeFile = rootProject.file(project.property("android.injected.signing.store.file") as String)
+                storeFile = file(project.property("android.injected.signing.store.file") as String)
                 storePassword = project.property("android.injected.signing.store.password") as String
                 keyAlias = project.property("android.injected.signing.key.alias") as String
                 keyPassword = project.property("android.injected.signing.key.password") as String
