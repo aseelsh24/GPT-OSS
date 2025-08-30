@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- This is a default backup rules file.
+         You can use it to specify which files to include in or exclude from backups.
+         For more information, see the Android Developer documentation:
+         https://developer.android.com/guide/topics/data/autobackup -->
+</full-backup-content>
