@@ -1,0 +1,119 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build, Zipalign & Sign APK
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        java-version: [17]
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java-version }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ matrix.java-version }}
+          cache: 'gradle'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/gradle-wrapper.properties') }}
+
+      - name: Grant execute to gradlew
+        run: chmod +x ./gradlew
+
+      - name: Build Release APK
+        run: ./gradlew clean assembleRelease --no-daemon --stacktrace
+        env:
+          JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF-8"
+
+      - name: Decode Keystore
+        run: |
+          echo "$SIGNING_KEYSTORE_BASE64" | base64 --decode > release-keystore.jks
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+        shell: bash
+
+      - name: Set ANDROID_HOME and Find Build Tools
+        run: |
+          # ✅ استخدام المسار الصحيح في بيئة GitHub Actions
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+
+          # التأكد من وجود build-tools
+          echo "📦 Available build-tools versions:"
+          ls $ANDROID_HOME/build-tools
+
+          # تحديد أحدث إصدار
+          BUILD_TOOLS_DIR=$(ls -v $ANDROID_HOME/build-tools/ | tail -n1)
+          export ANDROID_BUILD_TOOLS=$ANDROID_HOME/build-tools/$BUILD_TOOLS_DIR
+          echo "ANDROID_BUILD_TOOLS=$ANDROID_BUILD_TOOLS" >> $GITHUB_ENV
+
+          echo "✅ Using build-tools: $BUILD_TOOLS_DIR"
+        # لا حاجة لـ env هنا
+
+      - name: Zipalign APK
+        run: |
+          unsigned_apk=$(find app/build/outputs/apk/release -name "*-release-unsigned.apk" | head -n 1)
+          zipaligned_apk=app/build/outputs/apk/release/app-release-aligned.apk
+
+          echo "📦 Zipaligning APK..."
+          "$ANDROID_BUILD_TOOLS/zipalign" -v -p 4 "$unsigned_apk" "$zipaligned_apk"
+          echo "✅ Zipaligned APK at $zipaligned_apk"
+        env:
+          ANDROID_BUILD_TOOLS: ${{ env.ANDROID_BUILD_TOOLS }}
+
+      - name: Sign APK
+        run: |
+          signed_apk=app/build/outputs/apk/release/app-release-signed.apk
+          zipaligned_apk=app/build/outputs/apk/release/app-release-aligned.apk
+
+          echo "🔑 Signing APK..."
+          "$ANDROID_BUILD_TOOLS/apksigner" sign \
+            --key-pass pass:"$SIGNING_KEY_PASSWORD" \
+            --ks-pass pass:"$SIGNING_STORE_PASSWORD" \
+            --ks-key-alias "$SIGNING_KEY_ALIAS" \
+            --out "$signed_apk" \
+            "$zipaligned_apk"
+          echo "✅ Signed APK created at $signed_apk"
+        env:
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          ANDROID_BUILD_TOOLS: ${{ env.ANDROID_BUILD_TOOLS }}
+
+      - name: Verify APK signature
+        run: |
+          signed_apk=app/build/outputs/apk/release/app-release-signed.apk
+          "$ANDROID_BUILD_TOOLS/apksigner" verify "$signed_apk"
+        env:
+          ANDROID_BUILD_TOOLS: ${{ env.ANDROID_BUILD_TOOLS }}
+
+      - name: Upload Signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-release-apk
+          path: app/build/outputs/apk/release/app-release-signed.apk
